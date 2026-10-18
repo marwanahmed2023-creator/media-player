@@ -1,6 +1,7 @@
 package com.marwan.mediaplayer;
 
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -25,6 +26,8 @@ public class MainActivity extends ComponentActivity {
     private ExoPlayer player;
     private PlayerView playerView;
     private TextView title, status;
+    private LinearLayout rootLayout;
+    private boolean fullscreen = false;
     private boolean muted = false;
     private float volumeBeforeMute = 1f;
     private final float[] speeds = {0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
@@ -56,6 +59,7 @@ public class MainActivity extends ComponentActivity {
     }
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
+        rootLayout = root;
         root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(16), dp(14), dp(16), dp(12));
         root.setBackgroundColor(Color.rgb(12, 15, 25));
         TextView brand = text("MEDIA PLAYER", 13, Color.rgb(108, 185, 255)); brand.setLetterSpacing(0.12f); root.addView(brand);
@@ -93,14 +97,29 @@ public class MainActivity extends ComponentActivity {
             speed.setText("Speed " + value + "×");
         });
         row2.addView(speed, weight());
-        Button fullscreen = button("⛶  Fullscreen");
-        fullscreen.setOnClickListener(v -> {
-            int vis = getWindow().getDecorView().getSystemUiVisibility();
-            boolean hidden = (vis & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0;
-            if (!hidden) getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-            else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        Button fullscreenButton = button("⛶  Fullscreen");
+        fullscreenButton.setOnClickListener(v -> {
+            if (!fullscreen) {
+                fullscreen = true;
+                rootLayout.removeView(playerView);
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                setContentView(playerView);
+                getWindow().getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+            } else {
+                fullscreen = false;
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                setContentView(rootLayout);
+                rootLayout.addView(playerView, 2, new LinearLayout.LayoutParams(-1, 0, 1f));
+            }
         });
-        row2.addView(fullscreen, weight());
+        row2.addView(fullscreenButton, weight());
         TextView hint = text("Use the timeline in the video controls to jump to any point.", 12, Color.rgb(155, 166, 190));
         hint.setPadding(0, dp(8), 0, 0); root.addView(hint);
         setContentView(root);
