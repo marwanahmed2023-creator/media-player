@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,6 +29,7 @@ public class MainActivity extends ComponentActivity {
     private TextView title, status;
     private LinearLayout rootLayout;
     private boolean fullscreen = false;
+    private FrameLayout fullscreenFrame;
     private boolean muted = false;
     private float volumeBeforeMute = 1f;
     private final float[] speeds = {0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
@@ -98,27 +100,7 @@ public class MainActivity extends ComponentActivity {
         });
         row2.addView(speed, weight());
         Button fullscreenButton = button("⛶  Fullscreen");
-        fullscreenButton.setOnClickListener(v -> {
-            if (!fullscreen) {
-                fullscreen = true;
-                rootLayout.removeView(playerView);
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-                setContentView(playerView);
-                getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-            } else {
-                fullscreen = false;
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
-                setContentView(rootLayout);
-                rootLayout.addView(playerView, 2, new LinearLayout.LayoutParams(-1, 0, 1f));
-            }
-        });
+        fullscreenButton.setOnClickListener(v -> enterFullscreen());
         row2.addView(fullscreenButton, weight());
         TextView hint = text("Use the timeline in the video controls to jump to any point.", 12, Color.rgb(155, 166, 190));
         hint.setPadding(0, dp(8), 0, 0); root.addView(hint);
@@ -129,6 +111,41 @@ public class MainActivity extends ComponentActivity {
     }
     private LinearLayout.LayoutParams weight() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f); p.setMargins(dp(2), dp(3), dp(2), dp(3)); return p;
+    }
+    private void enterFullscreen() {
+        if (fullscreen) return;
+        fullscreen = true;
+        rootLayout.removeView(playerView);
+        fullscreenFrame = new FrameLayout(this);
+        fullscreenFrame.setBackgroundColor(Color.BLACK);
+        fullscreenFrame.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
+        Button exit = button("✕  Exit fullscreen");
+        FrameLayout.LayoutParams exitParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+        exitParams.setMargins(dp(8), dp(8), dp(8), dp(8));
+        fullscreenFrame.addView(exit, exitParams);
+        exit.setOnClickListener(v -> exitFullscreen());
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+        setContentView(fullscreenFrame);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+    }
+    private void exitFullscreen() {
+        if (!fullscreen) return;
+        fullscreen = false;
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+        setContentView(rootLayout);
+        rootLayout.addView(playerView, 2, new LinearLayout.LayoutParams(-1, 0, 1f));
+        fullscreenFrame = null;
+    }
+    @Override public void onBackPressed() {
+        if (fullscreen) exitFullscreen();
+        else super.onBackPressed();
     }
     private void initializePlayer() {
         player = new ExoPlayer.Builder(this).build(); playerView.setPlayer(player);
