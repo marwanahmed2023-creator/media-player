@@ -7,125 +7,215 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.activity.ComponentActivity;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
 @UnstableApi
 public class MainActivity extends ComponentActivity {
     private ExoPlayer player;
     private PlayerView playerView;
-    private TextView title, status;
-    private LinearLayout rootLayout;
-    private boolean fullscreen = false;
-    private FrameLayout fullscreenFrame;
+    private FrameLayout playerFrame;
+    private LinearLayout home;
+    private TextView status;
+    private Button fileButton;
+    private boolean playingScreen = false;
     private boolean muted = false;
-    private float volumeBeforeMute = 1f;
-    private final float[] speeds = {0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
-    private int speedIndex = 3;
+    private float previousVolume = 1f;
+    private boolean cropToFill = true;
+    private final float[] speeds = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
+    private int speedIndex = 2;
 
     private final ActivityResultLauncher<String[]> pickMedia =
         registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri != null) {
-                try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
-                catch (Exception ignored) {}
+                try {
+                    getContentResolver().takePersistableUriPermission(
+                        uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                } catch (Exception ignored) {}
                 playUri(uri);
             }
         });
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        getWindow().setStatusBarColor(Color.rgb(12, 15, 25));
-        getWindow().setNavigationBarColor(Color.rgb(12, 15, 25));
-        buildUi();
+        getWindow().setStatusBarColor(Color.rgb(10, 13, 22));
+        getWindow().setNavigationBarColor(Color.rgb(10, 13, 22));
+        buildHome();
         initializePlayer();
+        setContentView(home);
     }
-    private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
+
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
+
     private TextView text(String value, int size, int color) {
-        TextView t = new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color); return t;
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        return view;
     }
+
     private Button button(String label) {
-        Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextColor(Color.WHITE);
-        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(42, 53, 78))); return b;
+        Button button = new Button(this);
+        button.setText(label);
+        button.setAllCaps(false);
+        button.setTextColor(Color.WHITE);
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(42, 112, 220)));
+        return button;
     }
-    private void buildUi() {
-        LinearLayout root = new LinearLayout(this);
-        rootLayout = root;
-        root.setOrientation(LinearLayout.VERTICAL); root.setPadding(dp(16), dp(14), dp(16), dp(12));
-        root.setBackgroundColor(Color.rgb(12, 15, 25));
-        TextView brand = text("MEDIA PLAYER", 13, Color.rgb(108, 185, 255)); brand.setLetterSpacing(0.12f); root.addView(brand);
-        title = text("Choose a video or audio file", 20, Color.WHITE); title.setPadding(0, dp(8), 0, dp(12)); root.addView(title);
-        playerView = new PlayerView(this); playerView.setUseController(true);
-        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING); playerView.setBackgroundColor(Color.BLACK);
-        root.addView(playerView, new LinearLayout.LayoutParams(-1, 0, 1f));
-        status = text("Ready · Select a file to start", 13, Color.LTGRAY); status.setPadding(0, dp(10), 0, dp(4)); root.addView(status);
-        Button open = button("＋  Open video or audio"); open.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(42, 112, 220)));
-        open.setOnClickListener(v -> pickMedia.launch(new String[]{"video/*", "audio/*", "application/octet-stream", "*/*"}));
-        root.addView(open, new LinearLayout.LayoutParams(-1, -2));
-        LinearLayout row1 = row(root);
-        Button playPause = button("▶ / Ⅱ  Play");
-        playPause.setOnClickListener(v -> { if (player == null) return; if (player.isPlaying()) player.pause(); else player.play(); });
-        row1.addView(playPause, weight());
-        Button back = button("↶ 10s");
-        back.setOnClickListener(v -> { if (player != null) player.seekTo(Math.max(0, player.getCurrentPosition() - 10000)); });
-        row1.addView(back, weight());
-        Button forward = button("10s ↷");
-        forward.setOnClickListener(v -> { if (player != null) player.seekTo(player.getCurrentPosition() + 10000); });
-        row1.addView(forward, weight());
-        LinearLayout row2 = row(root);
-        Button mute = button("🔊  Mute");
-        mute.setOnClickListener(v -> {
-            if (player == null) return;
-            muted = !muted;
-            if (muted) { volumeBeforeMute = player.getVolume(); player.setVolume(0f); mute.setText("🔇  Unmute"); }
-            else { player.setVolume(volumeBeforeMute <= 0f ? 1f : volumeBeforeMute); mute.setText("🔊  Mute"); }
+
+    private void buildHome() {
+        home = new LinearLayout(this);
+        home.setOrientation(LinearLayout.VERTICAL);
+        home.setGravity(Gravity.CENTER);
+        home.setPadding(dp(28), dp(24), dp(28), dp(24));
+        home.setBackgroundColor(Color.rgb(10, 13, 22));
+
+        TextView logo = text("▶", 42, Color.rgb(100, 160, 255));
+        logo.setGravity(Gravity.CENTER);
+        home.addView(logo, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView heading = text("Media Player", 26, Color.WHITE);
+        heading.setGravity(Gravity.CENTER);
+        heading.setPadding(0, dp(8), 0, dp(8));
+        home.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView subtitle = text("Choose a video or audio file to begin", 14, Color.LTGRAY);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, 0, 0, dp(22));
+        home.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
+
+        fileButton = button("📁   File");
+        fileButton.setTextSize(18);
+        LinearLayout.LayoutParams fileParams = new LinearLayout.LayoutParams(-1, dp(58));
+        fileParams.setMargins(0, dp(4), 0, dp(8));
+        home.addView(fileButton, fileParams);
+        fileButton.setOnClickListener(v -> openFilePicker());
+
+        // The launch screen intentionally contains only the File action.
+    }
+
+    private void openFilePicker() {
+        pickMedia.launch(new String[]{"video/*", "audio/*", "application/octet-stream", "*/*"});
+    }
+
+    private void initializePlayer() {
+        player = new ExoPlayer.Builder(this).build();
+        playerView = new PlayerView(this);
+        playerView.setPlayer(player);
+        playerView.setUseController(true);
+        playerView.setControllerAutoShow(true);
+        playerView.setControllerHideOnTouch(true);
+        playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+        playerView.setBackgroundColor(Color.BLACK);
+        playerView.setKeepContentOnPlayerReset(true);
+
+        playerFrame = new FrameLayout(this);
+        playerFrame.setBackgroundColor(Color.BLACK);
+        playerFrame.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
+
+        Button menu = button("⋮");
+        menu.setTextSize(24);
+        menu.setPadding(0, 0, 0, 0);
+        menu.setMinWidth(dp(44));
+        menu.setMinimumWidth(dp(44));
+        menu.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0x990A0D16));
+        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.TOP | Gravity.END);
+        menuParams.setMargins(dp(8), dp(8), dp(8), dp(8));
+        playerFrame.addView(menu, menuParams);
+        menu.setOnClickListener(v -> showOptions(menu));
+
+        player.addListener(new Player.Listener() {
+            @Override public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_BUFFERING) setStatus("Buffering…");
+                else if (state == Player.STATE_READY) setStatus(player.isPlaying() ? "Playing" : "Ready");
+                else if (state == Player.STATE_ENDED) setStatus("Finished");
+            }
+
+            @Override public void onPlayerError(PlaybackException error) {
+                setStatus("This file could not be played.");
+                Toast.makeText(MainActivity.this,
+                    "Can't play this file. Try a supported MP4, WebM, MP3, or M4A file.",
+                    Toast.LENGTH_LONG).show();
+            }
+
+            @Override public void onIsPlayingChanged(boolean isPlaying) {
+                setStatus(isPlaying ? "Playing" : "Paused");
+            }
         });
-        row2.addView(mute, weight());
-        Button speed = button("Speed 1.0×");
-        speed.setOnClickListener(v -> {
-            speedIndex = (speedIndex + 1) % speeds.length;
-            float value = speeds[speedIndex]; if (player != null) player.setPlaybackSpeed(value);
-            speed.setText("Speed " + value + "×");
+    }
+
+    private void setStatus(String message) {
+        if (status != null) status.setText(message);
+    }
+
+    private void showOptions(View anchor) {
+        PopupMenu popup = new PopupMenu(this, anchor);
+        popup.getMenu().add("Playback speed: " + speeds[speedIndex] + "×");
+        popup.getMenu().add(muted ? "Unmute" : "Mute");
+        popup.getMenu().add(cropToFill ? "Fit video (show whole frame)" : "Fill screen (crop edges)");
+        popup.getMenu().add("Choose another file");
+        popup.setOnMenuItemClickListener(item -> {
+            String choice = item.getTitle().toString();
+            if (choice.startsWith("Playback speed")) {
+                speedIndex = (speedIndex + 1) % speeds.length;
+                player.setPlaybackSpeed(speeds[speedIndex]);
+                Toast.makeText(this, "Speed: " + speeds[speedIndex] + "×", Toast.LENGTH_SHORT).show();
+            } else if (choice.equals("Mute")) {
+                previousVolume = player.getVolume();
+                player.setVolume(0f);
+                muted = true;
+            } else if (choice.equals("Unmute")) {
+                player.setVolume(previousVolume <= 0f ? 1f : previousVolume);
+                muted = false;
+            } else if (choice.startsWith("Fit video")) {
+                cropToFill = false;
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
+            } else if (choice.startsWith("Fill screen")) {
+                cropToFill = true;
+                playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+            } else if (choice.equals("Choose another file")) {
+                openFilePicker();
+            }
+            return true;
         });
-        row2.addView(speed, weight());
-        Button fullscreenButton = button("⛶  Fullscreen");
-        fullscreenButton.setOnClickListener(v -> enterFullscreen());
-        row2.addView(fullscreenButton, weight());
-        TextView hint = text("Use the timeline in the video controls to jump to any point.", 12, Color.rgb(155, 166, 190));
-        hint.setPadding(0, dp(8), 0, 0); root.addView(hint);
-        setContentView(root);
+        popup.show();
     }
-    private LinearLayout row(LinearLayout root) {
-        LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); row.setGravity(Gravity.CENTER); root.addView(row); return row;
-    }
-    private LinearLayout.LayoutParams weight() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f); p.setMargins(dp(2), dp(3), dp(2), dp(3)); return p;
-    }
-    private void enterFullscreen() {
-        if (fullscreen) return;
-        fullscreen = true;
-        rootLayout.removeView(playerView);
-        fullscreenFrame = new FrameLayout(this);
-        fullscreenFrame.setBackgroundColor(Color.BLACK);
-        fullscreenFrame.addView(playerView, new FrameLayout.LayoutParams(-1, -1));
-        Button exit = button("✕  Exit fullscreen");
-        FrameLayout.LayoutParams exitParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
-        exitParams.setMargins(dp(8), dp(8), dp(8), dp(8));
-        fullscreenFrame.addView(exit, exitParams);
-        exit.setOnClickListener(v -> exitFullscreen());
+
+    private void playUri(Uri uri) {
+        playingScreen = true;
+        String name = uri.getLastPathSegment();
+        if (getSupportActionBar() != null) getSupportActionBar().setTitle(name == null ? "Now playing" : name);
+        player.setMediaItem(MediaItem.fromUri(uri));
+        player.prepare();
+        player.play();
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        setContentView(fullscreenFrame);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setContentView(playerFrame);
+        enterImmersiveFullscreen();
+    }
+
+    private void enterImmersiveFullscreen() {
         getWindow().getDecorView().setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_FULLSCREEN |
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -134,39 +224,26 @@ public class MainActivity extends ComponentActivity {
             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
             View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     }
-    private void exitFullscreen() {
-        if (!fullscreen) return;
-        fullscreen = false;
+
+    private void leavePlayer() {
+        playingScreen = false;
+        if (player != null) player.pause();
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
-        setContentView(rootLayout);
-        rootLayout.addView(playerView, 2, new LinearLayout.LayoutParams(-1, 0, 1f));
-        fullscreenFrame = null;
+        setContentView(home);
     }
+
     @Override public void onBackPressed() {
-        if (fullscreen) exitFullscreen();
+        if (playingScreen) leavePlayer();
         else super.onBackPressed();
     }
-    private void initializePlayer() {
-        player = new ExoPlayer.Builder(this).build(); playerView.setPlayer(player);
-        player.addListener(new Player.Listener() {
-            @Override public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_BUFFERING) status.setText("Buffering…");
-                else if (state == Player.STATE_READY) status.setText(player.isPlaying() ? "Playing" : "Ready");
-                else if (state == Player.STATE_ENDED) status.setText("Finished");
-            }
-            @Override public void onPlayerError(PlaybackException error) {
-                status.setText("Can't play this file or codec.");
-                Toast.makeText(MainActivity.this, "Playback failed: format or codec may not be supported.", Toast.LENGTH_LONG).show();
-            }
-            @Override public void onIsPlayingChanged(boolean playing) { status.setText(playing ? "Playing" : "Paused"); }
-        });
-    }
-    private void playUri(Uri uri) {
-        String name = uri.getLastPathSegment(); title.setText(name == null ? "Now playing" : name);
-        player.setMediaItem(MediaItem.fromUri(uri)); player.prepare(); player.play(); status.setText("Loading media…");
-    }
+
     @Override protected void onDestroy() {
-        super.onDestroy(); if (player != null) { player.release(); player = null; }
+        super.onDestroy();
+        if (player != null) {
+            player.release();
+            player = null;
+        }
     }
 }
