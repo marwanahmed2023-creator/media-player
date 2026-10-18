@@ -205,7 +205,7 @@ public class MainActivity extends ComponentActivity {
     private void playUri(Uri uri) {
         playingScreen = true;
         String name = uri.getLastPathSegment();
-        if (getSupportActionBar() != null) getSupportActionBar().setTitle(name == null ? "Now playing" : name);
+        playerView.setContentDescription(name == null ? "Now playing" : name);
         player.setMediaItem(MediaItem.fromUri(uri));
         player.prepare();
         player.play();
