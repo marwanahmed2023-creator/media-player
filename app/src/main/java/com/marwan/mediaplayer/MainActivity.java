@@ -71,7 +71,7 @@ public class MainActivity extends ComponentActivity {
         root.addView(playerView, new LinearLayout.LayoutParams(-1, 0, 1f));
         status = text("Ready · Select a file to start", 13, Color.LTGRAY); status.setPadding(0, dp(10), 0, dp(4)); root.addView(status);
         Button open = button("＋  Open video or audio"); open.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(42, 112, 220)));
-        open.setOnClickListener(v -> pickMedia.launch(new String[]{"video/*", "audio/*"}));
+        open.setOnClickListener(v -> pickMedia.launch(new String[]{"video/*", "audio/*", "application/octet-stream", "*/*"}));
         root.addView(open, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout row1 = row(root);
         Button playPause = button("▶ / Ⅱ  Play");
