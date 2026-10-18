@@ -38,7 +38,7 @@ public class MainActivity extends ComponentActivity {
     private boolean playingScreen = false;
     private boolean muted = false;
     private float previousVolume = 1f;
-    private boolean cropToFill = true;
+    private boolean cropToFill = false;
     private final float[] speeds = {0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f, 3f};
     private int speedIndex = 2;
 
@@ -126,7 +126,7 @@ public class MainActivity extends ComponentActivity {
         playerView.setControllerAutoShow(true);
         playerView.setControllerHideOnTouch(true);
         playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING);
-        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+        playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         playerView.setBackgroundColor(Color.BLACK);
         playerView.setKeepContentOnPlayerReset(true);
 
